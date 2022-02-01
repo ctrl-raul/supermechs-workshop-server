@@ -16,17 +16,17 @@ dotenv.config();
 
 const DEV = env('DEV', '0') === '1'
 const PORT = Number(env('PORT', '3000')) // 3000 is the allowed by repl.it
-const server = http.createServer()
-const io = new socketio.Server(server, {
+// const server = http.createServer()
+const io = new socketio.Server({
   cors: {
     origin: ['http://localhost:5000', 'https://supermechs-workshop.vercel.app/'],
     credentials: true,
   }
 })
 
-server.listen(PORT, () => {
-  console.log('Listening on port', PORT);
-});
+io.listen(PORT);
+
+console.log("huh")
 
 
 
