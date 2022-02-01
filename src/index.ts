@@ -19,7 +19,7 @@ const PORT = Number(env('PORT', '3000')) // 3000 is the allowed by repl.it
 const server = http.createServer()
 const io = new socketio.Server(server, {
   cors: {
-    origin: ['http://localhost:5000', 'https://supermechs-workshop.vercel.app/'],
+    origin: '*',
   }
 })
 
