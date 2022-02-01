@@ -4,20 +4,22 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 const socket_io_1 = __importDefault(require("socket.io"));
+const http_1 = __importDefault(require("http"));
 const dotenv_1 = __importDefault(require("dotenv"));
 const env_1 = __importDefault(require("./utils/env"));
 const BattleUtils_1 = require("./battle/BattleUtils");
 dotenv_1.default.config();
 const DEV = env_1.default('DEV', '0') === '1';
 const PORT = Number(env_1.default('PORT', '3000'));
-const io = new socket_io_1.default.Server({
+const server = http_1.default.createServer();
+const io = new socket_io_1.default.Server(server, {
     cors: {
-        origin: ['http://localhost:5000', 'https://supermechs-workshop.vercel.app/'],
-        credentials: true,
+        origin: '*',
     }
 });
-io.listen(PORT);
-console.log("huh");
+server.listen(PORT, () => {
+    console.log('Listening at', PORT);
+});
 class Player {
     constructor(socket) {
         this.setup = [];
