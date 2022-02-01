@@ -11,4 +11,3 @@ function env(name, default_value) {
     throw new Error(`Missing: process.env['${name}']`);
 }
 exports.default = env;
-//# sourceMappingURL=env.js.map

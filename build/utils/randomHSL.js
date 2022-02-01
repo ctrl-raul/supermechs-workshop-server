@@ -7,4 +7,3 @@ function default_1() {
     return `hsl(${h}, ${s}%, ${l}%)`;
 }
 exports.default = default_1;
-//# sourceMappingURL=randomHSL.js.map

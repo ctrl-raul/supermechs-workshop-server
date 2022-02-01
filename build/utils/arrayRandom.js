@@ -9,4 +9,3 @@ const arrayRandomIndex = function (array) {
     return Math.floor(Math.random() * array.length);
 };
 exports.arrayRandomIndex = arrayRandomIndex;
-//# sourceMappingURL=arrayRandom.js.map
