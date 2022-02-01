@@ -10,12 +10,11 @@ const env_1 = __importDefault(require("./utils/env"));
 const BattleUtils_1 = require("./battle/BattleUtils");
 dotenv_1.default.config();
 const DEV = env_1.default('DEV', '0') === '1';
-const PORT = Number(env_1.default('PORT', '5001'));
+const PORT = Number(env_1.default('PORT', '3000'));
 const server = http_1.default.createServer();
 const io = new socket_io_1.default.Server(server, {
     cors: {
-        origin: DEV ? 'http://localhost:5000' : 'https://supermechs-workshop.vercel.app/',
-        methods: ["GET", "POST"],
+        origin: ['http://localhost:5000', 'https://supermechs-workshop.vercel.app/'],
     }
 });
 server.listen(PORT, () => {
