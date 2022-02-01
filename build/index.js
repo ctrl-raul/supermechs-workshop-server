@@ -15,6 +15,7 @@ const server = http_1.default.createServer();
 const io = new socket_io_1.default.Server(server, {
     cors: {
         origin: ['http://localhost:5000', 'https://supermechs-workshop.vercel.app/'],
+        credentials: true,
     }
 });
 server.listen(PORT, () => {
