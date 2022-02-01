@@ -14,7 +14,7 @@ const PORT = Number(env_1.default('PORT', '5001'));
 const server = http_1.default.createServer();
 const io = new socket_io_1.default.Server(server, {
     cors: {
-        origin: DEV ? 'http://localhost:5000' : 'https://workshop-unlimited.vercel.app/',
+        origin: DEV ? 'http://localhost:5000' : 'https://supermechs-workshop.vercel.app/',
         methods: ["GET", "POST"],
     }
 });
