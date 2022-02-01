@@ -19,7 +19,7 @@ const PORT = Number(env('PORT', '5001'))
 const server = http.createServer()
 const io = new socketio.Server(server, {
   cors: {
-    origin: DEV ? 'http://localhost:5000' : 'https://workshop-unlimited.vercel.app/',
+    origin: DEV ? 'http://localhost:5000' : 'https://supermechs-workshop.vercel.app/',
     methods: ["GET", "POST"],
   }
 })
