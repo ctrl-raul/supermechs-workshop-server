@@ -1,285 +1,257 @@
 import socketio from 'socket.io';
 import http from 'http';
-import express from 'express';
-import cors from 'cors';
 import dotenv from 'dotenv';
-import sha256 from 'simple-js-sha2-256';
 import env from './utils/env';
-import Player from './Player';
-import PromiseSocket from './promise-socket.io';
-import Battle from './battle/Battle';
-import BattleUtils from './battle/BattleUtils';
-import BattleManager from './battle/BattleManager';
+import { getRandomStartPositions } from './battle/BattleUtils';
 
 
+
+// Set environment variables
 
 dotenv.config();
 
 
-const app = express();
-const server = http.createServer(app);
-const io = socketio(server, {
-  pingInterval: 25000,
-  pingTimeout: 35000
+
+// Socket configuration
+
+const DEV = env('DEV', '0') === '1'
+const PORT = Number(env('PORT', '5001'))
+const server = http.createServer()
+const io = new socketio.Server(server, {
+  cors: {
+    origin: DEV ? 'http://localhost:5000' : 'https://workshop-unlimited.vercel.app/',
+    methods: ["GET", "POST"],
+  }
+})
+
+server.listen(PORT, () => {
+  console.log('Listening on port', PORT);
 });
 
 
 
-const matchMakerPool: Player[] = [];
+// Game logic
+
+class Player {
+
+  socket: socketio.Socket
+  name: String
+  setup: number[] = []
+  battle: Battle | null = null
+
+  constructor (socket: socketio.Socket) {
+    this.socket = socket
+    this.name = socket.id
+  }
+
+  json (): any {
+    return {
+      id: this.socket.id,
+      name: this.name,
+      setup: this.setup
+    }
+  }
+
+}
+
+const matchMaker: Player[] = []
 
 
 
-io.on('connection', _socket => {
+// Socket listeners
 
-  console.log(_socket.id, 'has connected');
+io.on('connection', socket => {
 
-  const psocket = new PromiseSocket(_socket);
-  const player = new Player(psocket);
+  // Latency simulation for testing purposes
+  if (DEV) {
+    console.log('[index.ts] Socket emits are being delayed for testing purposes!')
+    const emit = socket.emit
+    socket.emit = function (...args) {
+      setTimeout(() => emit.apply(socket, args), 500)
+      // Naturally, socket.emit always returns true. (Don't ask)
+      return true
+    }
+  }
+
+  
+  console.log(socket.id, 'has connected')
+
+  const player = new Player(socket)
 
 
-  _socket.on('disconnect', () => {
-    leaveBattle(player);
-    removeFromMatchMaker(player);
-  });
+  socket.on('matchmaker.join', data => {
 
+    try {
 
+      if (matchMaker.includes(player)) {
+        throw new Error('Already in matchmaker')
+      }
 
-  psocket.on('match_maker.join', (resolve, _reject, data) => {
+      player.name = data.name
+      player.setup = data.setup
 
-    console.log(player.id, '-> match_maker.join');
+      matchMaker.push(player)
 
-    if (!isInMatchMaker(player)) {
+      console.log(player.name, 'has joined the matchMaker')
 
-      // For now we're assuming the client won't send invalid data
-      player.name = data.name;
-      player.setup = data.setup;
-      player.setupHash = sha256(JSON.stringify(data.setup));
+      socket.emit('matchmaker.join.success')
 
-      addToMatchMaker(player);
-      updateMatchMaker();
+      tryToMatch(player)
+
+    } catch (err: any) {
+
+      socket.emit('matchmaker.join.error', {
+        message: err.message
+      })
 
     }
 
-    resolve();
+  })
 
-  });
 
-  psocket.on('match_maker.quit', async (resolve, reject) => {
+  socket.on('matchmaker.quit', () => {
 
-    console.log(player.id, '-> match_maker.quit');
+    try {
 
-    // This handles the case of the player leaving while matchmaking
-    if (player.opponentValidationPromise) {
-      try {
-        await player.opponentValidationPromise;
-        reject({ message: 'Battle started' });
-        return;
-      } catch (err) {}
+      removeFromMatchMaker(player)
+
+      console.log(player.name, 'has quit the matchMaker')
+
+      socket.emit('matchmaker.quit.success')
+
+    } catch (err: any) {
+
+      socket.emit('matchmaker.quit.error', {
+        message: err.message
+      })
+
     }
 
-    resolve();
-    removeFromMatchMaker(player);
-
-  });
+  })
 
 
-  psocket.on('battle.quit', resolve => {
-    resolve();
-    leaveBattle(player);
-  });
-
-  psocket.on('battle.event', (resolve, reject, data) => {
-
-    if (player.battleData) {
-      player.emit('battle.event', data).catch();
-      player.battleData.opponent.emit('battle.event', data).catch();
-      resolve();
-    } else {
-      reject({ message: 'Not in battle' });
-    }
-
-  });
-
-});
-
-
-
-app.use(cors());
-app.get('/', (_req: any, res: any) => {
-  return res.send('Where are you going?');
-});
-
-server.listen(env('PORT', '3600'), () => {
-  console.log('Listening!');
-});
-
-
-
-// Functions
-
-function updateMatchMaker (): void {
-
-  console.log('matchMakerCount:', matchMakerPool.length);
-  console.time('updateMatchMaker');
-
-  for (const [p1, p2] of pairs(matchMakerPool)) {
+  socket.on('disconnect', () => {
     
-    if (p1.opponentValidationPromise) continue;
-    if (p2.opponentValidationPromise) continue;
-    if (p1.doNotMatch.includes(p2)) continue;
+    if (matchMaker.includes(player)) {
+      removeFromMatchMaker(player)
+    }
 
-    p1.opponentValidationPromise = validateOpponent(p1, p2);
-    p2.opponentValidationPromise = validateOpponent(p2, p1);
+    if (player.battle) {
+      const opponent = player.battle.p1 === player ? player.battle.p2 : player.battle.p1
+      opponent.socket.emit('battle.opponent.quit')
+    }
 
-    const promise = Promise.all([
-      p1.opponentValidationPromise,
-      p2.opponentValidationPromise,
-    ]);
+  })
 
-    promise.then(() => {
-      removeFromMatchMaker(p1);
-      removeFromMatchMaker(p2);
-      startBattle(p1, p2);
-    }).catch(err => {
-      console.log('Could not match:', err.message);
-    }).finally(() => {
-      p1.opponentValidationPromise = null;
-      p2.opponentValidationPromise = null;
-    });
+
+  socket.on('battle.event', event => {
+
+    console.log('[battle.event] event:', event)
+
+    if (player.battle === null) {
+      player.socket.emit('battle.event.error', { message: 'Not in battle' })
+      return
+    }
+
+    if (player.battle) {
+
+      const opponent = player.battle.p1 === player ? player.battle.p2 : player.battle.p1
+
+      Object.assign(event, { droneDamageScale: Math.random() })
+
+      opponent.socket.emit('battle.event.confirmation', event)
+      player.socket.emit('battle.event.confirmation', event)
+
+    }
+  })
+
+
+  socket.on('battle.quit', () => {
+    if (player.battle) {
+      const opponent = player.battle.p1 === player ? player.battle.p2 : player.battle.p1
+      opponent.socket.emit('battle.opponent.quit')
+    }
+  })
+
+})
+
+
+
+// functions
+
+class Battle {
+
+  p1: Player
+  p2: Player
+
+  constructor (p1: Player, p2: Player) {
+    this.p1 = p1
+    this.p2 = p2
+  }
+
+  json (): Object {
+
+    const p1 = this.p1.json()
+    const p2 = this.p2.json()
+
+    const randomPositions = getRandomStartPositions()
+
+    Object.assign(p1, { position: randomPositions[0] })
+    Object.assign(p2, { position: randomPositions[1] })
+
+    return {
+      starterID: Math.random() > 0.5 ? p1.id : p2.id,
+      p1,
+      p2,
+    }
 
   }
 
-  console.timeEnd('updateMatchMaker');
+}
+
+
+function removeFromMatchMaker (player: Player): void {
+
+  const index = matchMaker.indexOf(player)
+
+  if (index < 0) {
+    throw new Error('Not in matchmaker')
+  }
+
+  matchMaker.splice(index, 1)
+
+}
+
+
+function tryToMatch (player: Player): void {
+
+  for (const opponent of matchMaker) {
+
+    if (opponent === player) {
+      continue
+    }
+
+    startBattle(player, opponent)
+
+  }
 
 }
 
 
 function startBattle (p1: Player, p2: Player): void {
 
-  const [pos1, pos2] = BattleUtils.getRandomStartPositions();
-  const starterID = Math.random() > 0.5 ? p1.id : p2.id;
+  removeFromMatchMaker(p1)
+  removeFromMatchMaker(p2)
 
-  const p1Data = {
-    id: p1.id,
-    name: p1.name,
-    setup: p1.setup,
-    position: pos1,
-  };
+  const battle = new Battle(p1, p2)
 
-  const p2Data = {
-    id: p2.id,
-    name: p2.name,
-    setup: p2.setup,
-    position: pos2,
-  };
+  p1.battle = battle
+  p2.battle = battle
 
+  const battleJSON = battle.json()
+  console.log(battleJSON)
 
+  p1.socket.emit('battle.start', battleJSON)
+  p2.socket.emit('battle.start', battleJSON)
 
-  const battle = new Battle({
-    online: true,
-    playerID: p1.id, // Just for the sake, but server is impartial on who's the player 1
-    starterID,
-    p1: p1Data,
-    p2: p2Data,
-  });
-
-
-  p1.battleData = {
-    opponent: p2,
-    battle,
-  };
-
-  p2.battleData = {
-    opponent: p1,
-    battle,
-  };
-
-
-  p1.emit('battle.start', {
-    online: true,
-    playerID: p1.id,
-    starterID,
-    p1: p1Data,
-    p2: p2Data,
-  }).catch(err => {
-    console.log('p1 can\'t battle:', err.message);
-    leaveBattle(p1);
-  });
-
-  p2.emit('battle.start', {
-    online: true,
-    playerID: p2.id,
-    starterID,
-    p1: p1Data,
-    p2: p2Data,
-  }).catch(err => {
-    console.log('p2 can\'t battle:', err.message);
-    leaveBattle(p2);
-  });
-  
-};
-
-
-function leaveBattle (player: Player): void {
-  
-  if (!player.battleData) {
-    return;
-  }
-
-  if (!player.battleData.battle.complete) {
-
-    BattleManager.setBattleComplete(
-      player.battleData.battle,
-      player.battleData.opponent.id,
-      true,
-    );
-
-    leaveBattle(player.battleData.opponent);
-
-    player.battleData.opponent.emit('battle.opponent_quit').catch();
-
-  }
-
-  player.battleData = null;
-
-}
-
-
-function addToMatchMaker (player: Player): void {
-  if (!matchMakerPool.includes(player)) {
-    matchMakerPool.push(player);
-  }
-}
-
-
-function isInMatchMaker (player: Player): boolean {
-  return matchMakerPool.includes(player);
-}
-
-
-function removeFromMatchMaker (player: Player): void {
-
-  const index = matchMakerPool.indexOf(player);
-
-  if (index >= 0) {
-    matchMakerPool.splice(index, 1);
-  }
-
-}
-
-
-function validateOpponent (player: Player, opponent: Player): Promise<void> {
-  return player.psocket.emit('match_maker.is_valid_setup', {
-    setup: opponent.setup,
-    setupHash: opponent.setupHash,
-  }, 5000);
-}
-
-
-function* pairs <T> (array: T[]) {
-  for (let i = 0; i < array.length; ++i) {
-    for(var j = i + 1; j < array.length; ++j) {
-     yield [array[i], array[j]];
-    }
-  }
 }

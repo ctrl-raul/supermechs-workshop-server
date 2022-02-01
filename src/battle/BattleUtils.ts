@@ -22,7 +22,7 @@ function isPlayerTurn (battle: Battle): boolean {
 }
 
 
-function getRandomStartPositions (): [number, number] {
+export function getRandomStartPositions (): [number, number] {
 	const presets: [number, number][] = [[4, 5], [3, 6], [2, 7]];
 	return presets[Math.floor(Math.random() * presets.length)];
 }
