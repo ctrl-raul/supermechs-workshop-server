@@ -2,7 +2,6 @@ import socketio from 'socket.io';
 import http from 'http';
 import dotenv from 'dotenv';
 import env from './utils/env';
-import { getRandomStartPositions } from './battle/BattleUtils';
 
 
 
@@ -263,4 +262,10 @@ function startBattle (p1: Player, p2: Player): void {
   p1.socket.emit('battle.start', battleJSON)
   p2.socket.emit('battle.start', battleJSON)
 
+}
+
+
+function getRandomStartPositions (): [number, number] {
+	const presets: [number, number][] = [[4, 5], [3, 6], [2, 7]];
+	return presets[Math.floor(Math.random() * presets.length)];
 }

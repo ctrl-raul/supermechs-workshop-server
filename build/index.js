@@ -7,7 +7,6 @@ const socket_io_1 = __importDefault(require("socket.io"));
 const http_1 = __importDefault(require("http"));
 const dotenv_1 = __importDefault(require("dotenv"));
 const env_1 = __importDefault(require("./utils/env"));
-const BattleUtils_1 = require("./battle/BattleUtils");
 dotenv_1.default.config();
 const DEV = env_1.default('DEV', '0') === '1';
 const PORT = Number(env_1.default('PORT', '3000'));
@@ -120,7 +119,7 @@ class Battle {
     json() {
         const p1 = this.p1.json();
         const p2 = this.p2.json();
-        const randomPositions = BattleUtils_1.getRandomStartPositions();
+        const randomPositions = getRandomStartPositions();
         Object.assign(p1, { position: randomPositions[0] });
         Object.assign(p2, { position: randomPositions[1] });
         return {
@@ -155,4 +154,8 @@ function startBattle(p1, p2) {
     console.log(battleJSON);
     p1.socket.emit('battle.start', battleJSON);
     p2.socket.emit('battle.start', battleJSON);
+}
+function getRandomStartPositions() {
+    const presets = [[4, 5], [3, 6], [2, 7]];
+    return presets[Math.floor(Math.random() * presets.length)];
 }
