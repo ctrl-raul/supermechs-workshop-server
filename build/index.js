@@ -52,7 +52,13 @@ io.on('connection', socket => {
             if (matchMaker.includes(player)) {
                 throw new Error('Already in matchmaker');
             }
-            player.name = data.name;
+            if (!Array.isArray(data.setup)) {
+                throw new Error('Invalid mech setup (Error A)');
+            }
+            if (!data.setup.every((id) => typeof id === 'number' && !isNaN(id))) {
+                throw new Error('Invalid mech setup (Error B)');
+            }
+            player.name = String(data.name).slice(0, 32);
             player.setup = data.setup;
             matchMaker.push(player);
             console.log(player.name, 'has joined the matchMaker');

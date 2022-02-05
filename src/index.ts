@@ -88,7 +88,15 @@ io.on('connection', socket => {
         throw new Error('Already in matchmaker')
       }
 
-      player.name = data.name
+      if (!Array.isArray(data.setup)) {
+        throw new Error('Invalid mech setup (Error A)')
+      }
+
+      if (!data.setup.every((id: any) => typeof id === 'number' && !isNaN(id))) {
+        throw new Error('Invalid mech setup (Error B)')
+      }
+
+      player.name = String(data.name).slice(0, 32)
       player.setup = data.setup
 
       matchMaker.push(player)
