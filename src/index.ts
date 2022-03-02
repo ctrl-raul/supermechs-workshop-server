@@ -165,7 +165,11 @@ io.on('connection', socket => {
 
       const opponent = player.battle.p1 === player ? player.battle.p2 : player.battle.p1
 
-      Object.assign(event, { droneDamageScale: Math.random() })
+      Object.assign(event, {
+        droneDamageScale: Math.random(),
+        damageScale: Math.random(),
+        fromServer: true,
+      })
 
       opponent.socket.emit('battle.event.confirmation', event)
       player.socket.emit('battle.event.confirmation', event)
