@@ -1,13 +1,15 @@
-import socketio from 'socket.io';
-import http from 'http';
-import dotenv from 'dotenv';
-import env from './utils/env';
+import socketio from 'socket.io'
+import http from 'http'
+import dotenv from 'dotenv'
+import env from './utils/env'
+import * as MatchMaker from './MatchMaker'
+import { Player } from './Player'
 
 
 
 // Set environment variables
 
-dotenv.config();
+dotenv.config()
 
 
 
@@ -24,37 +26,7 @@ const io = new socketio.Server(server, {
   }
 })
 
-server.listen(PORT, () => {
-  console.log('Listening at', PORT)
-});
-
-
-
-// Game logic
-
-class Player {
-
-  socket: socketio.Socket
-  name: String
-  setup: number[] = []
-  battle: Battle | null = null
-
-  constructor (socket: socketio.Socket) {
-    this.socket = socket
-    this.name = socket.id
-  }
-
-  json (): any {
-    return {
-      id: this.socket.id,
-      name: this.name,
-      setup: this.setup
-    }
-  }
-
-}
-
-const matchMaker: Player[] = []
+server.listen(PORT, () => console.log('Listening at', PORT))
 
 
 
@@ -62,55 +34,57 @@ const matchMaker: Player[] = []
 
 io.on('connection', socket => {
 
+  console.log(socket.id, 'has connected')
+
+
   // Latency simulation for testing purposes
   if (DEV) {
-    console.log('[index.ts] Socket emits are being delayed for testing purposes!')
-    const emit = socket.emit
-    socket.emit = function (...args) {
-      setTimeout(() => emit.apply(socket, args), 500)
-      // Naturally, socket.emit always returns true. (Don't ask)
-      return true
-    }
+    setEmitDelay(socket)
   }
 
-  
-  console.log(socket.id, 'has connected')
 
   const player = new Player(socket)
 
+
+
+  // Connection events
+
+  socket.on('disconnect', () => {
+
+    console.log(`${socket.id}(${player.name}) has disconnected`)
+    
+    // Make sure to remove the player from the match maker
+    if (MatchMaker.isMatchMaking(player)) {
+      MatchMaker.quitMatchMaker(player)
+    }
+
+    // Make sure to kick the player from battle
+    if (player.battle) {
+      const opponent = player.battle.p1 === player ? player.battle.p2 : player.battle.p1
+      opponent.socket.emit('battle.opponent.quit')
+    }
+
+  })
+
+
+
+  // Match maker events
 
   socket.on('matchmaker.join', data => {
 
     try {
 
-      if (matchMaker.includes(player)) {
-        throw new Error('Already in matchmaker')
-      }
+      player.setData(data)
 
-      if (!Array.isArray(data.setup)) {
-        throw new Error('Invalid mech setup (Error A)')
-      }
+      // Add player to match maker
+      MatchMaker.joinMatchMaker(player)
 
-      if (!data.setup.every((id: any) => typeof id === 'number' && !isNaN(id))) {
-        throw new Error('Invalid mech setup (Error B)')
-      }
-
-      player.name = String(data.name).slice(0, 32)
-      player.setup = data.setup
-
-      matchMaker.push(player)
-
-      console.log(player.name, 'has joined the matchMaker')
-
+      // Notify player
       socket.emit('matchmaker.join.success')
-
-      tryToMatch(player)
 
     } catch (err: any) {
 
-      socket.emit('matchmaker.join.error', {
-        message: err.message
-      })
+      socket.emit('matchmaker.join.error', { message: err.message })
 
     }
 
@@ -121,155 +95,91 @@ io.on('connection', socket => {
 
     try {
 
-      removeFromMatchMaker(player)
+      // Remove from match maker
+      MatchMaker.quitMatchMaker(player)
 
-      console.log(player.name, 'has quit the matchMaker')
-
+      // Notify player
       socket.emit('matchmaker.quit.success')
 
     } catch (err: any) {
 
-      socket.emit('matchmaker.quit.error', {
-        message: err.message
-      })
+      socket.emit('matchmaker.quit.error', { message: err.message })
 
     }
 
   })
 
 
-  socket.on('disconnect', () => {
-    
-    if (matchMaker.includes(player)) {
-      removeFromMatchMaker(player)
-    }
 
-    if (player.battle) {
-      const opponent = player.battle.p1 === player ? player.battle.p2 : player.battle.p1
-      opponent.socket.emit('battle.opponent.quit')
-    }
-
-  })
-
+  // Battle events
 
   socket.on('battle.event', event => {
 
-    console.log('[battle.event] event:', event)
+    console.log(`${socket.id}(${player.name}) <<< battle.event ::`, event)
+
+
+    // Make sure the player is in a battle
 
     if (player.battle === null) {
       player.socket.emit('battle.event.error', { message: 'Not in battle' })
       return
     }
 
-    if (player.battle) {
 
-      const opponent = player.battle.p1 === player ? player.battle.p2 : player.battle.p1
+    // Add server's contribution to the event
 
-      Object.assign(event, {
-        droneDamageScale: Math.random(),
-        damageScale: Math.random(),
-        fromServer: true,
-      })
+    Object.assign(event, {
+      droneDamageScale: Math.random(),
+      damageScale: Math.random(),
+      fromServer: true,
+    })
 
-      opponent.socket.emit('battle.event.confirmation', event)
-      player.socket.emit('battle.event.confirmation', event)
 
-    }
+    // Send event to players
+
+    const opponent = player.battle.p1 === player ? player.battle.p2 : player.battle.p1
+
+    opponent.socket.emit('battle.event.confirmation', event)
+    player.socket.emit('battle.event.confirmation', event)
+
   })
 
 
   socket.on('battle.quit', () => {
-    if (player.battle) {
-      const opponent = player.battle.p1 === player ? player.battle.p2 : player.battle.p1
-      opponent.socket.emit('battle.opponent.quit')
+
+    // Make sure the player is in a battle
+
+    if (player.battle === null) {
+      player.socket.emit('battle.event.error', { message: 'Not in battle' })
+      return
     }
+
+
+    // Notify their opponent
+
+    const opponent = player.battle.p1 === player ? player.battle.p2 : player.battle.p1
+
+    opponent.socket.emit('battle.opponent.quit')
+
   })
 
 })
 
 
 
-// functions
+// Utils
 
-class Battle {
+function setEmitDelay (socket: socketio.Socket): void {
+  
+  const emit = socket.emit
 
-  p1: Player
-  p2: Player
+  socket.emit = function (...args) {
 
-  constructor (p1: Player, p2: Player) {
-    this.p1 = p1
-    this.p2 = p2
-  }
+    setTimeout(() => emit.apply(socket, args), 500)
 
-  json (): Object {
-
-    const p1 = this.p1.json()
-    const p2 = this.p2.json()
-
-    const randomPositions = getRandomStartPositions()
-
-    Object.assign(p1, { position: randomPositions[0] })
-    Object.assign(p2, { position: randomPositions[1] })
-
-    return {
-      starterID: Math.random() > 0.5 ? p1.id : p2.id,
-      p1,
-      p2,
-    }
+    // Naturally socket.emit always returns true
+    return true
 
   }
 
-}
-
-
-function removeFromMatchMaker (player: Player): void {
-
-  const index = matchMaker.indexOf(player)
-
-  if (index < 0) {
-    throw new Error('Not in matchmaker')
-  }
-
-  matchMaker.splice(index, 1)
-
-}
-
-
-function tryToMatch (player: Player): void {
-
-  for (const opponent of matchMaker) {
-
-    if (opponent === player) {
-      continue
-    }
-
-    startBattle(player, opponent)
-
-  }
-
-}
-
-
-function startBattle (p1: Player, p2: Player): void {
-
-  removeFromMatchMaker(p1)
-  removeFromMatchMaker(p2)
-
-  const battle = new Battle(p1, p2)
-
-  p1.battle = battle
-  p2.battle = battle
-
-  const battleJSON = battle.json()
-  console.log(battleJSON)
-
-  p1.socket.emit('battle.start', battleJSON)
-  p2.socket.emit('battle.start', battleJSON)
-
-}
-
-
-function getRandomStartPositions (): [number, number] {
-	const presets: [number, number][] = [[4, 5], [3, 6], [2, 7]];
-	return presets[Math.floor(Math.random() * presets.length)];
 }
