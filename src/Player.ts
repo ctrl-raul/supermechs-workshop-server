@@ -34,6 +34,8 @@ export class Player {
   setup: number[] = []
   battle: Battle | null = null
   position = 0
+  noMatch: string[] = []
+  itemsHash: string = ''
 
 
   constructor (socket: socketio.Socket) {
@@ -49,9 +51,12 @@ export class Player {
       throw new Error(`Invalid mech setup: ${data.setup}`)
     }
 
+    this.noMatch.length = 0
+
     // Update player data
     this.name = String(data.name).slice(0, 32)
     this.setup = data.setup
+    this.itemsHash = String(data.itemsHash)
 
   }
 

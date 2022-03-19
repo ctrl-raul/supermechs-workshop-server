@@ -52,7 +52,7 @@ io.on('connection', socket => {
   socket.on('disconnect', () => {
 
     console.log(`${socket.id}(${player.name}) has disconnected`)
-    
+
     // Make sure to remove the player from the match maker
     if (MatchMaker.isMatchMaking(player)) {
       MatchMaker.quitMatchMaker(player)
@@ -62,6 +62,8 @@ io.on('connection', socket => {
     if (player.battle) {
       const opponent = player.battle.p1 === player ? player.battle.p2 : player.battle.p1
       opponent.socket.emit('battle.opponent.quit')
+      opponent.battle = null
+      player.battle = null
     }
 
   })
@@ -107,6 +109,12 @@ io.on('connection', socket => {
 
     }
 
+  })
+
+
+  socket.on('matchmaker.validation', data => {
+    console.log(`[${socket.id}] <<< matchmaker.validation ::`, data)
+    MatchMaker.setValidation(player, Boolean(data.result))
   })
 
 
