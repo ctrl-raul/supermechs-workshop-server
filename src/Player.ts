@@ -30,7 +30,8 @@ function isSaneNumber (value: number): boolean {
 export class Player {
 
   socket: socketio.Socket
-  name: String
+  name: string
+  mechName = ''
   setup: number[] = []
   battle: Battle | null = null
   position = 0
@@ -55,6 +56,7 @@ export class Player {
 
     // Update player data
     this.name = String(data.name).slice(0, 32)
+    this.mechName = String(data.mechName).slice(0, 32)
     this.setup = data.setup
     this.itemsHash = String(data.itemsHash)
 
@@ -65,6 +67,7 @@ export class Player {
     return {
       id: this.socket.id,
       name: this.name,
+      mechName: this.mechName,
       setup: this.setup,
       position: this.position
     }
