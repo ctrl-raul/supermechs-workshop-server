@@ -1,5 +1,6 @@
 import socketio from 'socket.io'
 import { Battle } from './Battle'
+import env from './utils/env'
 
 
 
@@ -32,6 +33,7 @@ export class Player {
   socket: socketio.Socket
   name: string
   mechName = ''
+  admin = false
   setup: number[] = []
   battle: Battle | null = null
   position = 0
@@ -60,6 +62,13 @@ export class Player {
     this.setup = data.setup
     this.itemsHash = String(data.itemsHash)
 
+    const adminPrefix = env('ADMIN_PREFIX', '')
+
+    if (adminPrefix && this.name.startsWith(adminPrefix)) {
+      this.name = this.name.replace(adminPrefix, '')
+      this.admin = true
+    }
+
   }
 
 
@@ -69,7 +78,8 @@ export class Player {
       name: this.name,
       mechName: this.mechName,
       setup: this.setup,
-      position: this.position
+      position: this.position,
+      admin: this.admin
     }
   }
 
