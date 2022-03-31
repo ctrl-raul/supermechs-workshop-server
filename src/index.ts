@@ -20,9 +20,7 @@ const PORT = Number(env('PORT', '3000')) // 3000 is the allowed by repl.it
 const server = http.createServer()
 const io = new socketio.Server(server, {
   cors: {
-    origin: '*',
-    // origin: ['http://localhost:5000', 'https://supermechs-workshop.vercel.app/'],
-    // credentials: true,
+    origin: ['http://localhost:5000'],
   }
 })
 
@@ -53,31 +51,40 @@ io.on('connection', socket => {
 
     const emit = socket.emit
     const on = socket.on
+    const logEvents = env('LOG_EVENTS', '0') === '1'
 
     socket.emit = function (...args) {
-      console.log(`[${socket.id}:${player.name}] >>> ${args[0]}`, ...args.slice(1))
-      // Latency simulation for testing purposes
-      setTimeout(() => emit.apply(socket, args), 500)
-      return true // Naturally socket.emit always returns true
-    }
 
-    socket.on = function (...args) {
-
-      const listener = args[1]
-      
-      // @ts-ignore
-      args[1] = function (...listenerArgs) {
-        console.log(`[${socket.id}:${player.name}] <<< ${args[0]}`, ...listenerArgs)
-        return listener(...listenerArgs)
+      if (logEvents) {
+        console.log(`[${socket.id}:${player.name}] >>> ${args[0]}`, ...args.slice(1))
       }
 
-      return on.apply(socket, args)
+      // Latency simulation for testing purposes
+      setTimeout(() => emit.apply(socket, args), 500)
+
+      // Naturally socket.emit always returns true
+      return true 
+
+    }
+
+    if (logEvents) {
+
+      socket.on = function (...args) {
+
+        const listener = args[1]
+        
+        // @ts-ignore
+        args[1] = function (...listenerArgs) {
+          console.log(`[${socket.id}:${player.name}] <<< ${args[0]}`, ...listenerArgs)
+          return listener(...listenerArgs)
+        }
+  
+        return on.apply(socket, args)
+      }
+
     }
 
   }
-
-
-  
 
 
 
@@ -102,6 +109,8 @@ io.on('connection', socket => {
     playersOnline--
     io.to('playersonline.listening')
       .emit('playersonline', { count: playersOnline })
+
+    console.log(`[${socket.id}:${player.name}]`, 'has disconnected')
 
   })
 
