@@ -43,7 +43,8 @@ export class Player {
 
   constructor (socket: socketio.Socket) {
     this.socket = socket
-    this.name = socket.id
+    // @ts-ignore
+    this.name = socket.request._query.name
   }
 
 

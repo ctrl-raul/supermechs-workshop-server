@@ -26,6 +26,8 @@ const io = new socketio.Server(server, {
   }
 })
 
+let playersOnline = 0
+
 server.listen(PORT, () => console.log('Listening at', PORT))
 
 
@@ -37,9 +39,38 @@ io.on('connection', socket => {
   console.log(socket.id, 'has connected')
 
 
-  // Latency simulation for testing purposes
+  // Let other players know how many online players there are
+  playersOnline++
+  io.to('playersonline.listening')
+    .emit('playersonline', { count: playersOnline })
+
+
+
   if (DEV) {
-    setEmitDelay(socket)
+
+    const emit = socket.emit
+    const on = socket.on
+
+    socket.emit = function (...args) {
+      console.log(`[${socket.id}:${player.name}] >>> ${args[0]}`, ...args.slice(1))
+      // Latency simulation for testing purposes
+      setTimeout(() => emit.apply(socket, args), 500)
+      return true // Naturally socket.emit always returns true
+    }
+
+    socket.on = function (...args) {
+
+      const listener = args[1]
+      
+      // @ts-ignore
+      args[1] = function (...listenerArgs) {
+        console.log(`[${socket.id}:${player.name}] <<< ${args[0]}`, ...listenerArgs)
+        return listener(...listenerArgs)
+      }
+
+      return on.apply(socket, args)
+    }
+
   }
 
 
@@ -50,8 +81,6 @@ io.on('connection', socket => {
   // Connection events
 
   socket.on('disconnect', () => {
-
-    console.log(`${socket.id}(${player.name}) has disconnected`)
 
     // Make sure to remove the player from the match maker
     if (MatchMaker.isMatchMaking(player)) {
@@ -65,6 +94,11 @@ io.on('connection', socket => {
       opponent.battle = null
       player.battle = null
     }
+
+    // Let other players know how many online players there are
+    playersOnline--
+    io.to('playersonline.listening')
+      .emit('playersonline', { count: playersOnline })
 
   })
 
@@ -171,23 +205,18 @@ io.on('connection', socket => {
 
   })
 
+
+
+  // Statistics
+
+  socket.on('playersonline.listen', () => {
+    socket.join('playersonline.listening')
+    socket.emit('playersonline', { count: playersOnline })
+  })
+
+
+  socket.on('playersonline.ignore', () => {
+    socket.leave('playersonline.listening')
+  })
+
 })
-
-
-
-// Utils
-
-function setEmitDelay (socket: socketio.Socket): void {
-  
-  const emit = socket.emit
-
-  socket.emit = function (...args) {
-
-    setTimeout(() => emit.apply(socket, args), 500)
-
-    // Naturally socket.emit always returns true
-    return true
-
-  }
-
-}

@@ -47,7 +47,7 @@ export function joinMatchMaker (player: Player): void {
 
   pool.push(player)
 
-  console.log(`${player.socket.id}(${player.name}) has joined the match maker`, pool.map(player => player.name))
+  // console.log(`${player.socket.id}(${player.name}) has joined the match maker`, pool.map(player => player.name))
 
   tryToMatch(player)
 
@@ -81,7 +81,7 @@ export function quitMatchMaker (player: Player): void {
 
   }
 
-  console.log(`${player.socket.id}(${player.name}) has quit the match maker`, pool.map(player => player.name))
+  // console.log(`${player.socket.id}(${player.name}) has quit the match maker`, pool.map(player => player.name))
 
 }
 
