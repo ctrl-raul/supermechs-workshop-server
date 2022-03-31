@@ -36,7 +36,10 @@ server.listen(PORT, () => console.log('Listening at', PORT))
 
 io.on('connection', socket => {
 
-  console.log(socket.id, 'has connected')
+  const player = new Player(socket)
+
+  console.log(`[${socket.id}:${player.name}]`, 'has connected')
+
 
 
   // Let other players know how many online players there are
@@ -74,7 +77,7 @@ io.on('connection', socket => {
   }
 
 
-  const player = new Player(socket)
+  
 
 
 
