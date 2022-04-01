@@ -1,6 +1,8 @@
 import socketio from 'socket.io'
 import http from 'http'
 import dotenv from 'dotenv'
+import express from 'express'
+import basicAuth from 'express-basic-auth'
 import env from './utils/env'
 import * as MatchMaker from './MatchMaker'
 import { Player } from './Player'
@@ -16,8 +18,9 @@ dotenv.config()
 // Socket configuration
 
 const DEV = env('DEV', '0') === '1'
-const PORT = Number(env('PORT', '3000')) // 3000 is the allowed by repl.it
-const server = http.createServer()
+const PORT = Number(env('PORT', '3000')) // 3000 is the port allowed by repl.it
+const app = express()
+const server = http.createServer(app)
 const io = new socketio.Server(server, {
   cors: {
     origin: ['http://localhost:5000'],
@@ -27,6 +30,21 @@ const io = new socketio.Server(server, {
 let playersOnline = 0
 
 server.listen(PORT, () => console.log('Listening at', PORT))
+
+
+
+// Ensure this is before any other middleware or routes
+
+app.use(
+  basicAuth({
+    challenge: true,
+    users: {
+      'raul': ''
+    },
+  })
+)
+
+app.use(express.static('public'))
 
 
 
@@ -159,7 +177,6 @@ io.on('connection', socket => {
 
 
   socket.on('matchmaker.validation', data => {
-    console.log(`[${socket.id}] <<< matchmaker.validation ::`, data)
     MatchMaker.setValidation(player, Boolean(data.result))
   })
 
@@ -168,9 +185,6 @@ io.on('connection', socket => {
   // Battle events
 
   socket.on('battle.event', event => {
-
-    console.log(`${socket.id}(${player.name}) <<< battle.event ::`, event)
-
 
     // Make sure the player is in a battle
 
