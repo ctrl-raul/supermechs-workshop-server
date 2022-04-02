@@ -17,6 +17,7 @@ dotenv.config()
 
 // Socket configuration
 
+const EXPECTED_CLIENT_VERSION = '1'
 const DEV = env('DEV', '0') === '1'
 const PORT = Number(env('PORT', '3000')) // 3000 is the port allowed by repl.it
 const app = express()
@@ -51,6 +52,21 @@ app.use(express.static('public'))
 // Socket listeners
 
 io.on('connection', socket => {
+
+  // @ts-ignore
+  if (socket.request._query.clientVersion !== EXPECTED_CLIENT_VERSION) {
+
+    socket.emit('server.error', {
+      code: 'OUTDATED_CLIENT',
+      message: '',
+    })
+
+    socket.disconnect()
+
+    return
+
+  }
+
 
   const player = new Player(socket)
 
