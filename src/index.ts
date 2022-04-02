@@ -23,7 +23,7 @@ const app = express()
 const server = http.createServer(app)
 const io = new socketio.Server(server, {
   cors: {
-    origin: ['http://localhost:5000'],
+    origin: '*',
   }
 })
 
@@ -136,7 +136,7 @@ io.on('connection', socket => {
 
   // Match maker events
 
-  socket.on('matchmaker.join', data => {
+  socket.on('matchmaker.join', (data, callback) => {
 
     try {
 
@@ -146,18 +146,18 @@ io.on('connection', socket => {
       MatchMaker.joinMatchMaker(player)
 
       // Notify player
-      socket.emit('matchmaker.join.success')
+      callback({ error: null })
 
     } catch (err: any) {
 
-      socket.emit('matchmaker.join.error', { message: err.message })
+      callback({ error: { message: err.message } })
 
     }
 
   })
 
 
-  socket.on('matchmaker.quit', () => {
+  socket.on('matchmaker.quit', (_, callback) => {
 
     try {
 
@@ -165,11 +165,11 @@ io.on('connection', socket => {
       MatchMaker.quitMatchMaker(player)
 
       // Notify player
-      socket.emit('matchmaker.quit.success')
+      callback({ error: null })
 
     } catch (err: any) {
 
-      socket.emit('matchmaker.quit.error', { message: err.message })
+      callback({ error: { message: err.message } })
 
     }
 
