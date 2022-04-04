@@ -193,8 +193,31 @@ function validateEachOther (p1: Player, p2: Player): void {
     }
   })
 
-  p1.socket.emit('matchmaker.validation', { itemsHash: p2.itemsHash, setup: p2.setup })
-  p2.socket.emit('matchmaker.validation', { itemsHash: p1.itemsHash, setup: p1.setup })
+  p1.emit('matchmaker.validation', { itemsHash: p2.itemsHash, setup: p2.setup }, (response: any) => {
+    setValidation(p1, !!response.valid)
+  })
+
+  p1.socket.emit(
+    'matchmaker.validation',
+    {
+      itemsHash: p2.itemsHash,
+      setup: p2.setup
+    },
+    (response: any) => {
+      setValidation(p1, !!response.valid)
+    }
+  )
+
+  p2.socket.emit(
+    'matchmaker.validation',
+    {
+      itemsHash: p1.itemsHash,
+      setup: p1.setup
+    },
+    (response: any) => {
+      setValidation(p2, !!response.valid)
+    }
+  )
 
 }
 

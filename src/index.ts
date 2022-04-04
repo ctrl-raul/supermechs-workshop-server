@@ -2,7 +2,6 @@ import socketio from 'socket.io'
 import http from 'http'
 import dotenv from 'dotenv'
 import express from 'express'
-import basicAuth from 'express-basic-auth'
 import env from './utils/env'
 import * as MatchMaker from './MatchMaker'
 import { Player } from './Player'
@@ -17,7 +16,7 @@ dotenv.config()
 
 // Socket configuration
 
-const EXPECTED_CLIENT_VERSION = '1'
+const EXPECTED_CLIENT_VERSION = '2'
 const DEV = env('DEV', '0') === '1'
 const PORT = Number(env('PORT', '3000')) // 3000 is the port allowed by repl.it
 const app = express()
@@ -54,24 +53,15 @@ app.use(express.static('public'))
 io.on('connection', socket => {
 
   // @ts-ignore
-  if (socket.request._query.clientVersion !== EXPECTED_CLIENT_VERSION) {
-
-    socket.emit('server.error', {
-      code: 'OUTDATED_CLIENT',
-      message: '',
-    })
-
-    socket.disconnect()
-
-    return
-
-  }
-
-
+  const clientVersion = socket.request._query.clientVersion
   const player = new Player(socket)
 
-  console.log(`[${socket.id}:${player.name}]`, 'has connected')
 
+  // Make sure the client it's up to date, otherwise disconnect it
+  if (clientVersion !== EXPECTED_CLIENT_VERSION) {
+    player.emitServerError(true, 'OUTDATED_CLIENT', '')
+    return
+  }
 
 
   // Let other players know how many online players there are
@@ -80,46 +70,9 @@ io.on('connection', socket => {
     .emit('playersonline', { count: playersOnline })
 
 
-
-  {
-
-    const emit = socket.emit
-    const on = socket.on
-    const logEvents = env('LOG_EVENTS', '0') === '1'
-
-    socket.emit = function (...args) {
-
-      if (logEvents) {
-        console.log(`[${socket.id}:${player.name}] >>> ${args[0]}`, ...args.slice(1))
-      }
-
-      // Latency simulation for testing purposes
-      if (DEV) {
-        setTimeout(() => emit.apply(socket, args), 500)
-      }
-
-      // Naturally socket.emit always returns true
-      return true 
-
-    }
-
-    if (logEvents) {
-
-      socket.on = function (...args) {
-
-        const listener = args[1]
-        
-        // @ts-ignore
-        args[1] = function (...listenerArgs) {
-          console.log(`[${socket.id}:${player.name}] <<< ${args[0]}`, ...listenerArgs)
-          return listener(...listenerArgs)
-        }
-  
-        return on.apply(socket, args)
-      }
-
-    }
-
+  // When in dev, apply delay to emits to simulate latency
+  if (DEV) {
+    player.delayEmits(500)
   }
 
 
@@ -128,25 +81,10 @@ io.on('connection', socket => {
 
   socket.on('disconnect', () => {
 
-    // Make sure to remove the player from the match maker
-    if (MatchMaker.isMatchMaking(player)) {
-      MatchMaker.quitMatchMaker(player)
-    }
-
-    // Make sure to kick the player from battle
-    if (player.battle) {
-      const opponent = player.battle.p1 === player ? player.battle.p2 : player.battle.p1
-      opponent.socket.emit('battle.opponent.quit')
-      opponent.battle = null
-      player.battle = null
-    }
-
     // Let other players know how many online players there are
     playersOnline--
     io.to('playersonline.listening')
       .emit('playersonline', { count: playersOnline })
-
-    console.log(`[${socket.id}:${player.name}]`, 'has disconnected')
 
   })
 
@@ -154,16 +92,14 @@ io.on('connection', socket => {
 
   // Match maker events
 
-  socket.on('matchmaker.join', (data, callback) => {
+  player.on('matchmaker.join', (data, callback) => {
 
     try {
 
       player.setData(data)
 
-      // Add player to match maker
       MatchMaker.joinMatchMaker(player)
 
-      // Notify player
       callback({ error: null })
 
     } catch (err: any) {
@@ -175,14 +111,12 @@ io.on('connection', socket => {
   })
 
 
-  socket.on('matchmaker.quit', (_, callback) => {
+  player.on('matchmaker.quit', (_, callback) => {
 
     try {
 
-      // Remove from match maker
       MatchMaker.quitMatchMaker(player)
 
-      // Notify player
       callback({ error: null })
 
     } catch (err: any) {
@@ -191,23 +125,20 @@ io.on('connection', socket => {
 
     }
 
-  })
-
-
-  socket.on('matchmaker.validation', data => {
-    MatchMaker.setValidation(player, Boolean(data.result))
   })
 
 
 
   // Battle events
 
-  socket.on('battle.event', event => {
+  player.on('battle.event', event => {
+
+    // player.logGetting('battle.event', event)
 
     // Make sure the player is in a battle
 
     if (player.battle === null) {
-      player.socket.emit('battle.event.error', { message: 'Not in battle' })
+      player.emit('battle.event.error', { message: 'Not in battle' })
       return
     }
 
@@ -225,41 +156,27 @@ io.on('connection', socket => {
 
     const opponent = player.battle.p1 === player ? player.battle.p2 : player.battle.p1
 
-    opponent.socket.emit('battle.event.confirmation', event)
-    player.socket.emit('battle.event.confirmation', event)
+    opponent.emit('battle.event.confirmation', event)
+    player.emit('battle.event.confirmation', event)
 
   })
 
 
   socket.on('battle.quit', () => {
-
-    // Make sure the player is in a battle
-
-    if (player.battle === null) {
-      player.socket.emit('battle.event.error', { message: 'Not in battle' })
-      return
-    }
-
-
-    // Notify their opponent
-
-    const opponent = player.battle.p1 === player ? player.battle.p2 : player.battle.p1
-
-    opponent.socket.emit('battle.opponent.quit')
-
+    player.quitBattle()
   })
 
 
 
   // Statistics
 
-  socket.on('playersonline.listen', () => {
+  player.on('playersonline.listen', () => {
     socket.join('playersonline.listening')
-    socket.emit('playersonline', { count: playersOnline })
+    player.emit('playersonline', { count: playersOnline })
   })
 
 
-  socket.on('playersonline.ignore', () => {
+  player.on('playersonline.ignore', () => {
     socket.leave('playersonline.listening')
   })
 
