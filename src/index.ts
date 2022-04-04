@@ -81,7 +81,7 @@ io.on('connection', socket => {
 
 
 
-  if (DEV) {
+  {
 
     const emit = socket.emit
     const on = socket.on
@@ -94,7 +94,9 @@ io.on('connection', socket => {
       }
 
       // Latency simulation for testing purposes
-      setTimeout(() => emit.apply(socket, args), 500)
+      if (DEV) {
+        setTimeout(() => emit.apply(socket, args), 500)
+      }
 
       // Naturally socket.emit always returns true
       return true 
