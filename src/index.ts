@@ -36,14 +36,14 @@ server.listen(PORT, () => console.log('Listening at', PORT))
 
 // Ensure this is before any other middleware or routes
 
-app.use(
-  basicAuth({
-    challenge: true,
-    users: {
-      'raul': ''
-    },
-  })
-)
+// app.use(
+//   basicAuth({
+//     challenge: true,
+//     users: {
+//       'raul': ''
+//     },
+//   })
+// )
 
 app.use(express.static('public'))
 
