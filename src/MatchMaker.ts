@@ -38,8 +38,11 @@ export function joinMatchMaker (player: Player): void {
   }
 
   // If the player is in battle, we end it
-  if (player.battle !== null) {
-    player.quitBattle()
+  if (player.battle) {
+    const opponent = player.battle.p1 === player ? player.battle.p2 : player.battle.p1
+    opponent.socket.emit('battle.opponent.quit')
+    opponent.battle = null
+    player.battle = null
   }
 
   pool.push(player)
@@ -190,17 +193,9 @@ function validateEachOther (p1: Player, p2: Player): void {
     }
   })
 
-  wtf(p1, p2)
-  wtf(p2, p1)
+  p1.socket.emit('matchmaker.validation', { itemsHash: p2.itemsHash, setup: p2.setup })
+  p2.socket.emit('matchmaker.validation', { itemsHash: p1.itemsHash, setup: p1.setup })
 
-}
-
-
-function wtf (player: Player, opponent: Player) {
-  player.emit('matchmaker.validation', { itemsHash: opponent.itemsHash, setup: opponent.setup })
-  // , (response: any) => {
-  //   setValidation(player, !!response.valid)
-  // }
 }
 
 
@@ -209,7 +204,7 @@ function startBattle (p1: Player, p2: Player): void {
   const battle = new Battle(p1, p2)
   const battleJSON = battle.json()
 
-  p1.emit('battle.start', battleJSON)
-  p2.emit('battle.start', battleJSON)
+  p1.socket.emit('battle.start', battleJSON)
+  p2.socket.emit('battle.start', battleJSON)
 
 }
