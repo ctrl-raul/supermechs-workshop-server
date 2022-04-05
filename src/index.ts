@@ -109,7 +109,7 @@ io.on('connection', socket => {
 
   // Match maker events
 
-  socket.on('matchmaker.join', data => {
+  socket.on('matchmaker.join', (data, callback) => {
 
     try {
 
@@ -119,18 +119,20 @@ io.on('connection', socket => {
       MatchMaker.joinMatchMaker(player)
 
       // Notify player
-      socket.emit('matchmaker.join.success')
+      callback({ error: null })
+      // socket.emit('matchmaker.join.success')
 
     } catch (err: any) {
 
-      socket.emit('matchmaker.join.error', { message: err.message })
+      callback({ error: { message: err.message } })
+      // socket.emit('matchmaker.join.error', { message: err.message })
 
     }
 
   })
 
 
-  socket.on('matchmaker.quit', () => {
+  socket.on('matchmaker.quit', (_, callback) => {
 
     try {
 
@@ -138,11 +140,13 @@ io.on('connection', socket => {
       MatchMaker.quitMatchMaker(player)
 
       // Notify player
-      socket.emit('matchmaker.quit.success')
+      callback({ error: null })
+      // socket.emit('matchmaker.quit.success')
 
     } catch (err: any) {
 
-      socket.emit('matchmaker.quit.error', { message: err.message })
+      callback({ error: { message: err.message } })
+      // socket.emit('matchmaker.quit.error', { message: err.message })
 
     }
 
