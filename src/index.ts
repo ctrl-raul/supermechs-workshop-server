@@ -36,10 +36,7 @@ server.listen(PORT, () => console.log('Listening at', PORT))
 
 io.on('connection', socket => {
 
-  const player = new Player(socket)
-
-  console.log(`[${socket.id}:${player.name}]`, 'has connected')
-
+  console.log(socket.id, 'has connected')
 
 
   // Let other players know how many online players there are
@@ -77,7 +74,7 @@ io.on('connection', socket => {
   }
 
 
-  
+  const player = new Player(socket)
 
 
 
@@ -109,7 +106,7 @@ io.on('connection', socket => {
 
   // Match maker events
 
-  socket.on('matchmaker.join', (data, callback) => {
+  socket.on('matchmaker.join', data => {
 
     try {
 
@@ -119,20 +116,18 @@ io.on('connection', socket => {
       MatchMaker.joinMatchMaker(player)
 
       // Notify player
-      callback({ error: null })
-      // socket.emit('matchmaker.join.success')
+      socket.emit('matchmaker.join.success')
 
     } catch (err: any) {
 
-      callback({ error: { message: err.message } })
-      // socket.emit('matchmaker.join.error', { message: err.message })
+      socket.emit('matchmaker.join.error', { message: err.message })
 
     }
 
   })
 
 
-  socket.on('matchmaker.quit', (_, callback) => {
+  socket.on('matchmaker.quit', () => {
 
     try {
 
@@ -140,13 +135,11 @@ io.on('connection', socket => {
       MatchMaker.quitMatchMaker(player)
 
       // Notify player
-      callback({ error: null })
-      // socket.emit('matchmaker.quit.success')
+      socket.emit('matchmaker.quit.success')
 
     } catch (err: any) {
 
-      callback({ error: { message: err.message } })
-      // socket.emit('matchmaker.quit.error', { message: err.message })
+      socket.emit('matchmaker.quit.error', { message: err.message })
 
     }
 
