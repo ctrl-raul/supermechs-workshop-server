@@ -81,6 +81,8 @@ io.on('connection', socket => {
 
   socket.on('disconnect', () => {
 
+    player.disconnect()
+
     // Let other players know how many online players there are
     playersOnline--
     io.to('playersonline.listening')
@@ -127,6 +129,8 @@ io.on('connection', socket => {
 
   })
 
+
+  player.on('foo', () => {})
 
 
   // Battle events

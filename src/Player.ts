@@ -84,23 +84,28 @@ export class Player {
 
     this._log(`>>> "${event}"`, data)
 
-    if (callback === undefined) {
+    // if (callback === undefined) {
 
-      this.socket.emit(event, data)
+    //   this.socket.emit(event, data)
 
-    } else {
+    // } else {
 
       const callbackWrapper = (response: any) => {
 
         this._log(`<<< "${event}" [callback]`, response)
 
-        callback(response)
+        if (callback === undefined) {
+          console.log('undef callback for ', this.name)
+        } else {
+          console.log('has callback for ', this.name)
+          callback(response)
+        }
 
       }
 
       this.socket.emit(event, data, callbackWrapper)
 
-    }
+    // }
 
   }
 
