@@ -58,22 +58,15 @@ export class Player {
     this.noMatch.length = 0
 
     // Update player data
-    this.setName(data.name)
+    this.name = String(data.name).slice(0, 32)
     this.mechName = String(data.mechName).slice(0, 32)
     this.setup = data.setup
     this.itemsHash = String(data.itemsHash)
 
-  }
-
-
-  setName (name: string): void {
-
-    name = String(name).slice(0, 32)
-
     const adminPrefix = env('ADMIN_PREFIX', '')
 
-    if (adminPrefix && name.startsWith(adminPrefix)) {
-      this.name = name.replace(adminPrefix, '')
+    if (adminPrefix && this.name.startsWith(adminPrefix)) {
+      this.name = this.name.replace(adminPrefix, '')
       this.admin = true
     }
 
