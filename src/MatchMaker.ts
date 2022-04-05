@@ -190,14 +190,17 @@ function validateEachOther (p1: Player, p2: Player): void {
     }
   })
 
-  p2.emit('matchmaker.validation', { itemsHash: p1.itemsHash, setup: p1.setup }, (response: any) => {
-    setValidation(p2, !!response.valid)
-  })
+  wtf(p1, p2)
+  wtf(p2, p1)
 
-  p1.emit('matchmaker.validation', { itemsHash: p2.itemsHash, setup: p2.setup }, (response: any) => {
-    setValidation(p1, !!response.valid)
-  })
+}
 
+
+function wtf (player: Player, opponent: Player) {
+  player.emit('matchmaker.validation', { itemsHash: opponent.itemsHash, setup: opponent.setup })
+  // , (response: any) => {
+  //   setValidation(player, !!response.valid)
+  // }
 }
 
 
