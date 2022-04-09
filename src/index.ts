@@ -37,23 +37,18 @@ server.listen(PORT, () => console.log('Listening at', PORT))
 
 io.on('connection', socket => {
 
-  console.log(socket.id, 'has connected')
-
   // @ts-ignore
   const { clientVersion } = socket.request._query
-  
+  const player = new Player(socket as socketio.Socket)
+
+
+
+  // Make sure the client it's up to date, otherwise disconnect it
   if (clientVersion !== EXPECTED_CLIENT_VERSION) {
-
-    socket.emit('server.message', {
-      code: 'OUTDATED_CLIENT',
-      message: '', // Will be shown in case the client doesn't support the code
-    })
-
-    socket.disconnect()
-
+    player.emitServerError(true, 'OUTDATED_CLIENT', '')
     return
-
   }
+
 
 
   // Let other players know how many online players there are
@@ -63,54 +58,16 @@ io.on('connection', socket => {
 
 
 
+  // When in dev, apply delay to emits to simulate latency
   if (DEV) {
-
-    const emit = socket.emit
-    const on = socket.on
-
-    socket.emit = function (...args) {
-      console.log(`[${socket.id}:${player.name}] >>> ${args[0]}`, ...args.slice(1))
-      // Latency simulation for testing purposes
-      setTimeout(() => emit.apply(socket, args), 500)
-      return true // Naturally socket.emit always returns true
-    }
-
-    socket.on = function (...args) {
-
-      const listener = args[1]
-      
-      // @ts-ignore
-      args[1] = function (...listenerArgs) {
-        console.log(`[${socket.id}:${player.name}] <<< ${args[0]}`, ...listenerArgs)
-        return listener(...listenerArgs)
-      }
-
-      return on.apply(socket, args)
-    }
-
+    player.delayEmits(500)
   }
-
-
-  const player = new Player(socket)
 
 
 
   // Connection events
 
-  socket.on('disconnect', () => {
-
-    // Make sure to remove the player from the match maker
-    if (MatchMaker.isMatchMaking(player)) {
-      MatchMaker.quitMatchMaker(player)
-    }
-
-    // Make sure to kick the player from battle
-    if (player.battle) {
-      const opponent = player.battle.p1 === player ? player.battle.p2 : player.battle.p1
-      opponent.socket.emit('battle.opponent.quit')
-      opponent.battle = null
-      player.battle = null
-    }
+  player.on('disconnect', () => {
 
     // Let other players know how many online players there are
     playersOnline--
@@ -123,10 +80,10 @@ io.on('connection', socket => {
 
   // Match maker events
 
-  socket.on('matchmaker.join', (data, callback) => {
+  player.on('matchmaker.join', (data, callback) => {
 
     if (typeof callback !== 'function') {
-      socket.disconnect()
+      player.disconnect()
     }
 
     try {
@@ -146,10 +103,10 @@ io.on('connection', socket => {
   })
 
 
-  socket.on('matchmaker.quit', (_, callback) => {
+  player.on('matchmaker.quit', (_, callback) => {
 
     if (typeof callback !== 'function') {
-      socket.disconnect()
+      player.disconnect()
     }
 
     try {
@@ -167,8 +124,7 @@ io.on('connection', socket => {
   })
 
 
-  socket.on('matchmaker.validation', data => {
-    console.log(`[${socket.id}] <<< matchmaker.validation ::`, data)
+  player.on('matchmaker.validation', data => {
     MatchMaker.setValidation(player, Boolean(data.result))
   })
 
@@ -176,15 +132,12 @@ io.on('connection', socket => {
 
   // Battle events
 
-  socket.on('battle.event', event => {
-
-    console.log(`${socket.id}(${player.name}) <<< battle.event ::`, event)
-
+  player.on('battle.event', event => {
 
     // Make sure the player is in a battle
 
     if (player.battle === null) {
-      player.socket.emit('battle.event.error', { message: 'Not in battle' })
+      player.emit('battle.event.error', { message: 'Not in battle' })
       return
     }
 
@@ -202,27 +155,25 @@ io.on('connection', socket => {
 
     const opponent = player.battle.p1 === player ? player.battle.p2 : player.battle.p1
 
-    opponent.socket.emit('battle.event.confirmation', event)
-    player.socket.emit('battle.event.confirmation', event)
+    opponent.emit('battle.event.confirmation', event)
+    player.emit('battle.event.confirmation', event)
 
   })
 
 
-  socket.on('battle.quit', () => {
+  player.on('battle.quit', () => {
 
     // Make sure the player is in a battle
 
     if (player.battle === null) {
-      player.socket.emit('battle.event.error', { message: 'Not in battle' })
+      player.emit('battle.event.error', { message: 'Not in battle' })
       return
     }
 
 
     // Notify their opponent
 
-    const opponent = player.battle.p1 === player ? player.battle.p2 : player.battle.p1
-
-    opponent.socket.emit('battle.opponent.quit')
+    player.quitBattle()
 
   })
 
@@ -230,13 +181,13 @@ io.on('connection', socket => {
 
   // Statistics
 
-  socket.on('playersonline.listen', () => {
+  player.on('playersonline.listen', () => {
     socket.join('playersonline.listening')
-    socket.emit('playersonline', { count: playersOnline })
+    player.emit('playersonline', { count: playersOnline })
   })
 
 
-  socket.on('playersonline.ignore', () => {
+  player.on('playersonline.ignore', () => {
     socket.leave('playersonline.listening')
   })
 
