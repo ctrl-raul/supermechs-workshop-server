@@ -15,6 +15,7 @@ dotenv.config()
 
 // Socket configuration
 
+const EXPECTED_CLIENT_VERSION = 'flabbergasted!!!'
 const DEV = env('DEV', '0') === '1'
 const PORT = Number(env('PORT', '3000')) // 3000 is the allowed by repl.it
 const server = http.createServer()
@@ -37,6 +38,22 @@ server.listen(PORT, () => console.log('Listening at', PORT))
 io.on('connection', socket => {
 
   console.log(socket.id, 'has connected')
+
+  // @ts-ignore
+  const { clientVersion } = socket.request._query
+  
+  if (clientVersion !== EXPECTED_CLIENT_VERSION) {
+
+    socket.emit('server.message', {
+      code: 'OUTDATED_CLIENT',
+      message: '', // Will be shown in case the client doesn't support the code
+    })
+
+    socket.disconnect()
+
+    return
+
+  }
 
 
   // Let other players know how many online players there are
@@ -106,40 +123,44 @@ io.on('connection', socket => {
 
   // Match maker events
 
-  socket.on('matchmaker.join', data => {
+  socket.on('matchmaker.join', (data, callback) => {
+
+    if (typeof callback !== 'function') {
+      socket.disconnect()
+    }
 
     try {
 
       player.setData(data)
 
-      // Add player to match maker
       MatchMaker.joinMatchMaker(player)
 
-      // Notify player
-      socket.emit('matchmaker.join.success')
+      callback({ error: null })
 
     } catch (err: any) {
 
-      socket.emit('matchmaker.join.error', { message: err.message })
+      callback({ error: { message: err.message } })
 
     }
 
   })
 
 
-  socket.on('matchmaker.quit', () => {
+  socket.on('matchmaker.quit', (_, callback) => {
+
+    if (typeof callback !== 'function') {
+      socket.disconnect()
+    }
 
     try {
 
-      // Remove from match maker
       MatchMaker.quitMatchMaker(player)
 
-      // Notify player
-      socket.emit('matchmaker.quit.success')
+      callback({ error: null })
 
     } catch (err: any) {
 
-      socket.emit('matchmaker.quit.error', { message: err.message })
+      callback({ error: { message: err.message } })
 
     }
 
