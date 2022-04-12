@@ -15,7 +15,7 @@ dotenv.config()
 
 // Socket configuration
 
-const EXPECTED_CLIENT_VERSION = 'flabbergasted!!!'
+const EXPECTED_CLIENT_VERSION = 'gobsmacked!!!'
 const DEV = env('DEV', '0') === '1'
 const PORT = Number(env('PORT', '3000')) // 3000 is the allowed by repl.it
 const server = http.createServer()

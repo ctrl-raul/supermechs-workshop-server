@@ -190,8 +190,8 @@ function validateEachOther (p1: Player, p2: Player): void {
     }
   })
 
-  p1.emit('matchmaker.validation', { itemsHash: p2.itemsHash, setup: p2.setup })
-  p2.emit('matchmaker.validation', { itemsHash: p1.itemsHash, setup: p1.setup })
+  p1.emit('matchmaker.validation', { itemsHash: p2.itemsHash, setup: p2.mech.setup })
+  p2.emit('matchmaker.validation', { itemsHash: p1.itemsHash, setup: p1.mech.setup })
 
 }
 

@@ -33,9 +33,11 @@ export class Player {
 
   socket: socketio.Socket
   name: string = 'Unnamed Pilot'
-  mechName = ''
+  mech = {
+    name: '',
+    setup: [] as number[]
+  }
   admin = false
-  setup: number[] = []
   battle: Battle | null = null
   position = 0
   noMatch: string[] = []
@@ -143,16 +145,22 @@ export class Player {
   setData (data: any): void {
 
     // Sanity checks
-    if (!Array.isArray(data.setup) || !data.setup.every(isSaneNumber)) {
-      throw new Error(`Invalid mech setup: ${data.setup}`)
+
+    if (typeof data !== 'object' || data.mech === null) {
+      throw new Error(`No mech provided`)
     }
 
+    if (!Array.isArray(data.mech.setup) || !data.mech.setup.every(isSaneNumber)) {
+      throw new Error(`Invalid mech setup: ${data.mech.setup}`)
+    }
+
+
+    // Changed mech, so we reset this
     this.noMatch.length = 0
 
     // Update player data
     this.name = String(data.name).slice(0, 32)
-    this.mechName = String(data.mechName).slice(0, 32)
-    this.setup = data.setup
+    this.mech = data.mech
     this.itemsHash = String(data.itemsHash)
 
     const adminPrefix = env('ADMIN_PREFIX', '')
@@ -172,7 +180,7 @@ export class Player {
       this.disconnect()
     }
 
-    this.emit('server.error', { code, message })
+    this.emit('server.message', { code, message })
 
   }
 
@@ -197,8 +205,7 @@ export class Player {
     return {
       id: this.socket.id,
       name: this.name,
-      mechName: this.mechName,
-      setup: this.setup,
+      mech: this.mech,
       position: this.position,
       admin: this.admin
     }
