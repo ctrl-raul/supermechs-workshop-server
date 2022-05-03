@@ -15,7 +15,7 @@ dotenv.config()
 
 // Socket configuration
 
-const EXPECTED_CLIENT_VERSION = 'gobsmacked!!!'
+const EXPECTED_CLIENT_VERSION = 'gobsmacked!!!' // This should probably be an env var
 const DEV = env('DEV', '0') === '1'
 const PORT = Number(env('PORT', '3000')) // 3000 is the allowed by repl.it
 const server = http.createServer()
@@ -37,10 +37,11 @@ server.listen(PORT, () => console.log('Listening at', PORT))
 
 io.on('connection', socket => {
 
-  // @ts-ignore
-  const { clientVersion } = socket.request._query
-  const player = new Player(socket as socketio.Socket)
+  // TODO: Get rid of query parameters support in the next update (Also in the Player class)
 
+  // @ts-ignore
+  const clientVersion = socket.request.headers['x-client-version'] || socket.request._query.clientVersion
+  const player = new Player(socket as socketio.Socket)
 
 
   // Make sure the client it's up to date, otherwise disconnect it

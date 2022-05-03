@@ -45,13 +45,11 @@ export class Player {
 
 
   constructor (socket: socketio.Socket) {
-    
-    // @ts-ignore
-    const rawName = socket.request._query.name
 
     this.socket = socket
 
-    this.setName(rawName)
+    // @ts-ignore
+    this.setName(socket.request.headers['x-player-name'] || socket.request._query.name)
 
     this._log(':: Connected')
     
@@ -127,7 +125,7 @@ export class Player {
 
 
   /** Safely sets a new name */
-  setName (name: any): void {
+  setName (name: any = 'Unammed Pilot'): void {
 
     name = String(name).slice(0, 32)
 
