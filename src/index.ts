@@ -1,4 +1,4 @@
-import socketio from 'socket.io'
+import socketio, { Socket } from 'socket.io'
 import http from 'http'
 import dotenv from 'dotenv'
 import env from './utils/env'
@@ -15,9 +15,11 @@ dotenv.config()
 
 // Socket configuration
 
-const EXPECTED_CLIENT_VERSION = 'gobsmacked!!!' // This should probably be an env var
+const EXPECTED_CLIENT_VERSION = '2' // This should probably be an env var
 const DEV = env('DEV', '0') === '1'
 const PORT = Number(env('PORT', '3000')) // 3000 is the allowed by repl.it
+const ROOM_LOBBY = 'room_lobby'
+
 const server = http.createServer()
 const io = new socketio.Server(server, {
   cors: {
@@ -27,7 +29,8 @@ const io = new socketio.Server(server, {
   }
 })
 
-let playersOnline = 0
+
+const players: Record<string, Player> = {}
 
 server.listen(PORT, () => console.log('Listening at', PORT))
 
@@ -43,19 +46,14 @@ io.on('connection', socket => {
   const clientVersion = socket.request.headers['x-client-version'] || socket.request._query.clientVersion
   const player = new Player(socket as socketio.Socket)
 
+  players[socket.id] = player
+
 
   // Make sure the client it's up to date, otherwise disconnect it
   if (clientVersion !== EXPECTED_CLIENT_VERSION) {
     player.emitServerError(true, 'OUTDATED_CLIENT', '')
     return
   }
-
-
-
-  // Let other players know how many online players there are
-  playersOnline++
-  io.to('playersonline.listening')
-    .emit('playersonline', { count: playersOnline })
 
 
 
@@ -68,12 +66,16 @@ io.on('connection', socket => {
 
   // Connection events
 
-  player.on('disconnect', () => {
+  player.on('disconnecting', () => {
 
-    // Let other players know how many online players there are
-    playersOnline--
-    io.to('playersonline.listening')
-      .emit('playersonline', { count: playersOnline })
+    delete players[socket.id]
+
+    if (socket.rooms.has(ROOM_LOBBY)) {
+      // Notify other players that this socket left the lobby
+      io.to(ROOM_LOBBY).emit('lobby.players.exited', { 
+        id: socket.id
+      })
+    }
 
   })
 
@@ -92,6 +94,11 @@ io.on('connection', socket => {
       player.setData(data)
 
       MatchMaker.joinMatchMaker(player)
+
+      io.to(ROOM_LOBBY).emit('lobby.players.matchmaker', { 
+        id: socket.id,
+        isInMatchMaker: true
+      })
 
       callback({ error: null })
 
@@ -114,6 +121,11 @@ io.on('connection', socket => {
 
       MatchMaker.quitMatchMaker(player)
 
+      io.to(ROOM_LOBBY).emit('lobby.players.matchmaker', { 
+        id: socket.id,
+        isInMatchMaker: false
+      })
+
       callback({ error: null })
 
     } catch (err: any) {
@@ -127,6 +139,72 @@ io.on('connection', socket => {
 
   player.on('matchmaker.validation', data => {
     MatchMaker.setValidation(player, Boolean(data.result))
+  })
+
+
+  // Lobby events
+
+  player.on('lobby.join', async () => {
+
+    // Notify other players that this socket joined the lobby
+    io.to(ROOM_LOBBY).emit('lobby.players.joined', { 
+      player: {
+        name: player.name,
+        id: socket.id,
+        isInMatchMaker: MatchMaker.isMatchMaking(player),
+        admin: player.admin,
+      }
+    })
+
+    socket.join(ROOM_LOBBY)
+    socket.emit('lobby.players', {
+      players: getPlayersInRoom(ROOM_LOBBY).map(_player => ({
+        name: _player.name,
+        id: _player.socket.id,
+        isInMatchMaker: MatchMaker.isMatchMaking(_player),
+        admin: _player.admin,
+      }))
+    })
+
+  })
+
+  player.on('lobby.exit', () => {
+
+    socket.join(ROOM_LOBBY)
+
+    // Notify other players that this socket left the lobby
+    io.to(ROOM_LOBBY).emit('lobby.players.exited', { 
+      id: socket.id
+    })
+
+  })
+
+
+
+  // Profile events
+
+  player.on('profile.update', (data: any) => {
+
+    try {
+
+      player.setData(data)
+
+    } catch (err: any) {
+
+      player._log('BAD DATA:', data)
+      player.disconnect()
+
+      return
+
+    }
+
+    if (socket.rooms.has(ROOM_LOBBY)) {
+      io.to(ROOM_LOBBY).emit('profile.update', { 
+        id: socket.id,
+        name: player.name
+      })
+    }
+
   })
 
 
@@ -178,18 +256,20 @@ io.on('connection', socket => {
 
   })
 
-
-
-  // Statistics
-
-  player.on('playersonline.listen', () => {
-    socket.join('playersonline.listening')
-    player.emit('playersonline', { count: playersOnline })
-  })
-
-
-  player.on('playersonline.ignore', () => {
-    socket.leave('playersonline.listening')
-  })
-
 })
+
+
+
+// Utils
+
+function getPlayersInRoom(room: string): Player[] {
+
+  const socketsIDs = io.sockets.adapter.rooms.get(room)
+
+  if (!socketsIDs) {
+    return []
+  }
+
+  return Array.from(socketsIDs.keys()).map(id => players[id])
+
+}
