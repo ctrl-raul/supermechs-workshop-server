@@ -48,8 +48,9 @@ export class Player {
 
     this.socket = socket
 
-    // @ts-ignore
-    this.setName(socket.request.headers['x-player-name'] || socket.request._query.name)
+    if (socket.request.headers['x-player-name']) {
+      this.setName(String(socket.request.headers['x-player-name']))
+    }
 
     this._log(':: Connected')
     
@@ -125,14 +126,14 @@ export class Player {
 
 
   /** Safely sets a new name */
-  setName (name: any = 'Unammed Pilot'): void {
+  setName (name: string): void {
 
-    name = String(name).slice(0, 32)
+    this.name = name.slice(0, 32)
 
     const adminPrefix = env('ADMIN_PREFIX', '')
 
-    if (adminPrefix && name.startsWith(adminPrefix)) {
-      this.name = name.replace(adminPrefix, '')
+    if (adminPrefix && this.name.startsWith(adminPrefix)) {
+      this.name = this.name.replace(adminPrefix, '')
       this.admin = true
     }
 
@@ -144,12 +145,35 @@ export class Player {
 
     // Sanity checks
 
-    if (typeof data !== 'object' || data.mech === null) {
-      throw new Error(`No mech provided`)
+    // Entirely invalid data
+    if (!data || typeof data !== 'object') {
+      throw new Error()
     }
 
+    // Invalid mech
+    if (!data.mech || typeof data.mech !== 'object') {
+      throw new Error()
+    }
+
+    // Invalid name
+    if (typeof data.name !== 'string') {
+      throw new Error()
+    }
+
+    // Invalid mech name
+    if (typeof data.mech.name !== 'string') {
+      throw new Error()
+    }
+
+    // Invalid mech setup
     if (!Array.isArray(data.mech.setup) || !data.mech.setup.every(isSaneNumber)) {
-      throw new Error(`Invalid mech setup: ${data.mech.setup}`)
+      // Invalid mech setup
+      throw new Error()
+    }
+
+    // Invalid itemsHash
+    if (typeof data.itemsHash !== 'string') {
+      throw new Error()
     }
 
 
@@ -157,9 +181,9 @@ export class Player {
     this.noMatch.length = 0
 
     // Update player data
-    this.name = String(data.name).slice(0, 32)
+    this.name = data.name.slice(0, 32)
     this.mech = data.mech
-    this.itemsHash = String(data.itemsHash)
+    this.itemsHash = data.itemsHash
 
     const adminPrefix = env('ADMIN_PREFIX', '')
 
@@ -226,7 +250,7 @@ export class Player {
   }
 
 
-  private _log (...args: any[]): void {
+  public _log (...args: any[]): void {
     console.log(`[${this.socket.id.slice(0, 5)}] ${this.name}`, ...args)
   }
 

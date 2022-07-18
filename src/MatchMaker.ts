@@ -201,6 +201,7 @@ function startBattle (p1: Player, p2: Player): void {
   const battle = new Battle(p1, p2)
   const battleJSON = battle.json()
 
+  
   p1.emit('battle.start', battleJSON)
   p2.emit('battle.start', battleJSON)
 
