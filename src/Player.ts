@@ -1,5 +1,5 @@
 import socketio from 'socket.io'
-import env from './utils/env'
+import { env } from './utils/env'
 import * as MatchMaker from './MatchMaker'
 import { Battle } from './Battle'
 

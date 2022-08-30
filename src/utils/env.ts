@@ -1,8 +1,14 @@
+import * as dotenv from 'dotenv';
+
+
+dotenv.config();
+
+
 /**
  * @param {string} name          Name of environment variable.
  * @param {string} default_value Default value (if not provided throws an error in the absence of the variable).
  */
-function env (name: string, default_value?: string): string {
+export function env (name: string, default_value?: string): string {
 
   // @ts-ignore
   const value = process.env[name];
@@ -17,5 +23,3 @@ function env (name: string, default_value?: string): string {
 
   throw new Error(`Missing: process.env['${name}']`);
 }
-
-export default env;

@@ -1,52 +1,99 @@
-import { Player } from './Player'
+import { User } from './User'
+
+
+
+// Types
+
+interface BattleUserJSON {
+  id: string
+  name: string
+  mech: {
+    name: string
+    setup: number[]
+  }
+  position: number
+  isAdmin: boolean
+}
+
+
+interface BattleJSON {
+  starterID: string
+  a: BattleUserJSON
+  b: BattleUserJSON
+}
+
 
 
 
 export class Battle {
 
-  static getRandomStartPositions (): [number, number] {
+  private static getRandomStartPositions (): [number, number] {
     const presets: [number, number][] = [[4, 5], [3, 6], [2, 7]]
     return presets[Math.floor(Math.random() * presets.length)]
   }
 
 
 
-  p1: Player
-  p2: Player
-  starterID: string
+  // State
+
+  public a: User
+  public b: User
+  public positions: Record<string, number>
+  public starterID: string
 
 
 
-  constructor (p1: Player, p2: Player) {
+  // Constructor
 
-    // Init self
-
-    this.p1 = p1
-    this.p2 = p2
-
-    this.starterID = Math.random() > 0.5 ? p1.socket.id : p2.socket.id
-
-
-    // Init players
+  constructor (a: User, b: User) {
 
     const randomPositions = Battle.getRandomStartPositions()
 
-    p1.battle = this
-    p1.position =  randomPositions[0]
+    this.a = a
+    this.b = b
 
-    p2.battle = this
-    p2.position =  randomPositions[1]
+    this.positions = {
+      [a.socket.id]: randomPositions[0],
+      [b.socket.id]: randomPositions[1],
+    }
+
+    this.starterID = Math.random() > 0.5 ? a.socket.id : b.socket.id
+
+
+    a.battle = this
+    b.battle = this
 
   }
 
 
 
-  json (): Object {
+  // Methods
 
-    const p1 = this.p1.json()
-    const p2 = this.p2.json()
+  public getJSON (): BattleJSON {
 
-    return { starterID: this.starterID, p1, p2 }
+    return {
+      starterID: this.starterID,
+      a: {
+        id: this.a.socket.id,
+        name: this.a.name,
+        mech: {
+          name: this.a.mech.name,
+          setup: this.a.mech.setup,
+        },
+        position: this.positions[this.a.socket.id],
+        isAdmin: this.a.isAdmin,
+      },
+      b: {
+        id: this.b.socket.id,
+        name: this.b.name,
+        mech: {
+          name: this.b.mech.name,
+          setup: this.b.mech.setup,
+        },
+        position: this.positions[this.b.socket.id],
+        isAdmin: this.b.isAdmin,
+      },
+    }
 
   }
 
