@@ -1,4 +1,5 @@
-import { Battle } from '../Battle';
+// import { Battle } from '../Battle';
+import { BattlesManager } from '../Battle/BattlesManager';
 import { User } from '../User';
 import { SocketManager } from './SocketManager';
 import { UserProfileManager } from './UserProfileManeger';
@@ -258,12 +259,12 @@ export class LobbyManager {
   
     a.socket.emit('lobby.verifyOpponent', {
       hash: b.mech.hash,
-      setup: b.mech.setup,
+      slots: b.mech.slots,
     })
     
     b.socket.emit('lobby.verifyOpponent', {
       hash: a.mech.hash,
-      setup: a.mech.setup,
+      slots: a.mech.slots,
     })
 
   }
@@ -337,11 +338,16 @@ export class LobbyManager {
 
   private static startBattle (a: User, b: User): void {
 
-    const battle = new Battle(a, b);
-    const battleJSON = battle.getJSON();
+    const battle = BattlesManager.createBattle({
+      id: a.socket.id,
+      name: a.name,
+    }, {
+      id: b.socket.id,
+      name: b.name,
+    });
 
-    a.socket.emit('lobby.startBattle', battleJSON);
-    b.socket.emit('lobby.startBattle', battleJSON);
+    a.socket.emit('lobby.startBattle', battle);
+    b.socket.emit('lobby.startBattle', battle);
   
   }
   

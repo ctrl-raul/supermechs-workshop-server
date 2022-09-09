@@ -24,7 +24,6 @@ interface BattleJSON {
 
 
 
-
 export class Battle {
 
   private static getRandomStartPositions (): [number, number] {
